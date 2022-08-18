@@ -1,4 +1,5 @@
 from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import os
 import urllib.request
@@ -22,7 +23,7 @@ from requests import get
                        수시경영공시  ) 연도별 > 월별 > 파일 (날짜_제목을 파일명으로 저장)
 '''
 
-chromeDriver = webdriver.Chrome('./chromedriver')
+chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
 
 pruMainUrl = "https://www.prudential.co.kr"
 
