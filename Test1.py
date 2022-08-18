@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 import os
 import urllib.request
 from requests import get
+from openpyxl import load_workbook
 
 '''
 1. 공시실 최상위 메뉴 선택 (상품공시 , 경영공시 등등)
@@ -24,6 +25,8 @@ commit test123 123
 
 
 pruMainUrl = "https://www.prudential.co.kr"
+
+dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
 
 def selectTab(menuId , mainUrl , tabIdList) :
 
@@ -150,6 +153,7 @@ def cmpyInformationAccordian(tabInfo , tabPath ) : #경영공시 아코디언 �
 def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형식
     cmpyInformationTable = tabInfo.select('.table-holder table')[0]
     tables = cmpyInformationTable.select('tr')
+    row = 5#엑셀 로우
 
     for table in tables :
         dept1List = table.findAll("td", {"class": "va-t"}) #구분 년도(제목)
@@ -161,6 +165,7 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
             
             elif tabId == 'governance' :
                 yyyy = dept1List[0].text.strip()[:4]  #년도
+                sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(지배구조)")#엑셀 시트
 
             lastPath = tabPath + "/" + yyyy
 
@@ -186,11 +191,16 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
                 downloadPath = lastPath + "/" + saveName      #저장 경로
 
                 try:
-                    download(fileDownLoadUrl , downloadPath )
+                    download(fileDownLoadUrl , downloadPath)
+                    sheetPath.cell(row,3).value = downloadPath#엑셀 셀 값
                     
                     print("success : " , downloadPath)
+                    row += 1#엑셀 로우 
                 except urllib.error.HTTPError as e:
                     print("failed:", e)
+    
+    dataTempltExcel.save('test.xlsx')  #엑셀 다른이름 저장 
+
 
     return
 
@@ -409,5 +419,5 @@ def getPageSourceHtml(url) :  # 페이지 소스 html변환
 #주석 제외 후 실행
 # selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
 # selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
-# selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
+selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['governance'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
