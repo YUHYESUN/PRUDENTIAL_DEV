@@ -1,5 +1,3 @@
-from selenium import webdriver
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import os
 import urllib.request
@@ -24,7 +22,6 @@ from requests import get
 commit test123 123
 '''
 
-chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
 
 pruMainUrl = "https://www.prudential.co.kr"
 
@@ -36,7 +33,7 @@ def selectTab(menuId , mainUrl , tabIdList) :
     h2Nm = html.find("h2" , {"class" : "carousel__item-heading"})  #메뉴명 ex)상품공시 , 경영공시 ..
     
     #최상위폴더 생성
-    h2NmStrip = checkExistPathOrFile(h2Nm.text.strip())  #동일한 파일명 있는지 확인
+    h2NmStrip = checkExistPathOrFile("output" + "/" + h2Nm.text.strip())  #동일한 파일명 있는지 확인
     os.mkdir(h2NmStrip)
 
     for tabId in tabIdList : 
@@ -398,17 +395,19 @@ def download(url, file_name = None):   #파일 다운로드 (다운로드할 파
 
 def getPageSourceHtml(url) :  # 페이지 소스 html변환
     # driver = webdriver.Chrome('./chromedriver')
-    path = url
-    chromeDriver.get(path)
+    # path = url
+    # chromeDriver.get(path)
 
-    html = chromeDriver.page_source # html을 문자열로 가져온다.
+    # html = chromeDriver.page_source # html을 문자열로 가져온다.
+    response = get(url)
+    html = response.text
     # beautifulsoup 사용하기
     soup = BeautifulSoup(html,'html.parser')
 
     return soup
 
 #주석 제외 후 실행
-selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
-selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
-selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) 
-selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
+# selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
+# selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
+# selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
+# selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
