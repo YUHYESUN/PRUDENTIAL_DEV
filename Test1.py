@@ -23,7 +23,6 @@ from openpyxl import load_workbook
 commit test123 123
 '''
 
-
 pruMainUrl = "https://www.prudential.co.kr"
 
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
@@ -153,7 +152,7 @@ def cmpyInformationAccordian(tabInfo , tabPath ) : #경영공시 아코디언 �
 def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형식
     cmpyInformationTable = tabInfo.select('.table-holder table')[0]
     tables = cmpyInformationTable.select('tr')
-    row = 5#엑셀 로우
+    row = 4 #엑셀 저장 로우 시작 
 
     for table in tables :
         dept1List = table.findAll("td", {"class": "va-t"}) #구분 년도(제목)
@@ -162,16 +161,22 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
             
             if tabId == 'regular' :
                 yyyy = dept1List[0].text.strip().replace("년" , "")  #년도
+                yyyyCell = yyyy
             
             elif tabId == 'governance' :
                 yyyy = dept1List[0].text.strip()[:4]  #년도
-                sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(지배구조)")#엑셀 시트
+                yyyyCell = dept1List[0].text.strip().replace("-","")  #YYYYMMDD
+                sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(지배구조)")   #엑셀 시트명
 
             lastPath = tabPath + "/" + yyyy
 
             os.makedirs(lastPath , exist_ok= True)
 
             file = table.find("td", {"class": "ta-c"})
+            
+            #제목 : B , 작성일 : C
+            sheetPath.cell(row,2).value = dept1List[1].text.strip()    #엑셀 셀 값 저장(제목)
+            sheetPath.cell(row,3).value = yyyyCell    #엑셀 셀 값 저장(작성일)
 
             if file.find("a") != None :
                 if tabId == 'regular' :
@@ -192,14 +197,16 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
 
                 try:
                     download(fileDownLoadUrl , downloadPath)
-                    sheetPath.cell(row,3).value = downloadPath#엑셀 셀 값
-                    
+                    #첨부파일 경로 (D)
+                    sheetPath.cell(row,4).value = downloadPath    #엑셀 셀 값 저장
+
                     print("success : " , downloadPath)
-                    row += 1#엑셀 로우 
                 except urllib.error.HTTPError as e:
                     print("failed:", e)
+            
+            row += 1#엑셀 로우 
     
-    dataTempltExcel.save('test.xlsx')  #엑셀 다른이름 저장 
+    dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
 
 
     return
