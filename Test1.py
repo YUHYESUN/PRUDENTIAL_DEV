@@ -3,6 +3,11 @@ import os
 import urllib.request
 from requests import get
 from openpyxl import load_workbook
+from openpyxl.utils.cell import coordinate_from_string
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium import webdriver
+
+
 
 '''
 1. 공시실 최상위 메뉴 선택 (상품공시 , 경영공시 등등)
@@ -26,6 +31,7 @@ commit test123 123
 pruMainUrl = "https://www.prudential.co.kr"
 
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
+chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
 
 def selectTab(menuId , mainUrl , tabIdList) :
 
@@ -102,7 +108,9 @@ def selectTab(menuId , mainUrl , tabIdList) :
 def cmpyInformationAccordian(tabInfo , tabPath ) : #경영공시 아코디언 형식
     cmpyInformationAccordian = tabInfo.select('.panel__block')[0]
     accordianList = cmpyInformationAccordian.select('.accordion')
-    
+    sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(정기,수시,결산,감사)")   #엑셀 시트명
+    row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+
     for accordian in accordianList :
         rgstP = accordian.find("p" , {"class": "accordion__cover-small"} )
         rgstDt = rgstP.text.strip().replace("등록일 ","")
@@ -116,12 +124,17 @@ def cmpyInformationAccordian(tabInfo , tabPath ) : #경영공시 아코디언 �
         os.makedirs(lastPath , exist_ok= True)
         
         fileDiv = accordian.find("div" , {"class": "accordion__contents"})
+        setExcelValue(sheetPath , row , '구분' , "수시") #엑셀 셀 값 저장(수시)
+        setExcelValue(sheetPath , row , '작성일' , rgstDt.replace("-","")) #엑셀 셀 값 저장(작성일)
+        setExcelValue(sheetPath , row , '내용' , str(fileDiv)) #엑셀 셀 값 저장(내용)
 
         file = fileDiv.find("a", title = "다운로드")
+        mainTopic = accordian.find("a" , {"class": "accordion__pointer"} )["title"]
+        setExcelValue(sheetPath , row , '제목' , mainTopic) #엑셀 셀 값 저장(제목)
+
         if file != None :
 
             fileDownLoadUrl = file["href"].strip()        #다운로드할 파일 url
-            mainTopic = accordian.find("a" , {"class": "accordion__pointer"} )["title"]
             subTopicP = fileDiv.find("p")
         
             subTopic = ''
@@ -142,17 +155,27 @@ def cmpyInformationAccordian(tabInfo , tabPath ) : #경영공시 아코디언 �
             try:
                 download(fileDownLoadUrl , downloadPath)
                 
+                setExcelValue(sheetPath , row , '첨부파일' , downloadPath) #엑셀 셀 값 저장(첨부파일)
                 print("success : " , downloadPath)
             except urllib.error.HTTPError as e:
                 print("failed:", e)
-
-
+        
+        row += 1 #로우 증가
+    dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+   
     return
 
 def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형식
     cmpyInformationTable = tabInfo.select('.table-holder table')[0]
     tables = cmpyInformationTable.select('tr')
-    row = 4 #엑셀 저장 로우 시작 
+
+    if tabId == 'regular' :
+        sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(정기,수시,결산,감사)")   #엑셀 시트명
+            
+    elif tabId == 'governance' :
+        sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(지배구조)")   #엑셀 시트명
+    
+    row = sheetPath.max_row + 1#엑셀 저장 로우 시작 (마지막 로우 조회) 
 
     for table in tables :
         dept1List = table.findAll("td", {"class": "va-t"}) #구분 년도(제목)
@@ -162,11 +185,11 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
             if tabId == 'regular' :
                 yyyy = dept1List[0].text.strip().replace("년" , "")  #년도
                 yyyyCell = yyyy
+                setExcelValue(sheetPath , row , '구분' , "정기") #엑셀 셀 값 저장(정기)
             
             elif tabId == 'governance' :
                 yyyy = dept1List[0].text.strip()[:4]  #년도
                 yyyyCell = dept1List[0].text.strip().replace("-","")  #YYYYMMDD
-                sheetPath = dataTempltExcel.get_sheet_by_name("경영공시(지배구조)")   #엑셀 시트명
 
             lastPath = tabPath + "/" + yyyy
 
@@ -174,9 +197,8 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
 
             file = table.find("td", {"class": "ta-c"})
             
-            #제목 : B , 작성일 : C
-            sheetPath.cell(row,2).value = dept1List[1].text.strip()    #엑셀 셀 값 저장(제목)
-            sheetPath.cell(row,3).value = yyyyCell    #엑셀 셀 값 저장(작성일)
+            setExcelValue(sheetPath , row , '제목' , dept1List[1].text.strip()) #엑셀 셀 값 저장(제목)
+            setExcelValue(sheetPath , row , '작성일' , yyyyCell) #엑셀 셀 값 저장(작성일)
 
             if file.find("a") != None :
                 if tabId == 'regular' :
@@ -197,8 +219,8 @@ def cmpyInformationTable(tabInfo , tabPath , tabId) : #경영공시 테이블형
 
                 try:
                     download(fileDownLoadUrl , downloadPath)
-                    #첨부파일 경로 (D)
-                    sheetPath.cell(row,4).value = downloadPath    #엑셀 셀 값 저장
+                    
+                    setExcelValue(sheetPath , row , '첨부파일' , downloadPath) #엑셀 셀 값 저장(첨부파일 저장경로)
 
                     print("success : " , downloadPath)
                 except urllib.error.HTTPError as e:
@@ -412,19 +434,38 @@ def download(url, file_name = None):   #파일 다운로드 (다운로드할 파
 
 def getPageSourceHtml(url) :  # 페이지 소스 html변환
     # driver = webdriver.Chrome('./chromedriver')
-    # path = url
-    # chromeDriver.get(path)
+    path = url
+    chromeDriver.get(path)
 
-    # html = chromeDriver.page_source # html을 문자열로 가져온다.
-    response = get(url)
-    html = response.text
+    html = chromeDriver.page_source # html을 문자열로 가져온다.
+    # response = get(url)
+    # html = response.text
     # beautifulsoup 사용하기
     soup = BeautifulSoup(html,'html.parser')
 
     return soup
 
+def setExcelValue(sheetPath , rowNum , cellNm , value):  #(시트 , 로우 , 칼럼명 , 데이터)
+    cellNum = getCellTitleIndex(sheetPath[2] , cellNm)
+    sheetPath.cell(rowNum,cellNum).value = value    #엑셀 셀 값 저장
+
+#템플릿 엑셀의 칼럼명의 인덱스 조회
+def getCellTitleIndex(sheetRow , titleNm):
+    
+    def getValue(cell):
+        return cell.value.strip()
+
+    cellTitleList = list(map(getValue , sheetRow))
+    index = cellTitleList.index(titleNm)
+
+    if index == -1 :
+        print("[fail] : do not find index")
+
+    return index + 1
+
+
 #주석 제외 후 실행
 # selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
 # selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
-selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['governance'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
+selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
