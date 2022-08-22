@@ -1,3 +1,4 @@
+
 from bs4 import BeautifulSoup
 import os
 import urllib.request
@@ -32,6 +33,7 @@ pruMainUrl = "https://www.prudential.co.kr"
 
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
 chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
+noMakeDir = ['13339']
 
 def selectTab(menuId , mainUrl , tabIdList) :
 
@@ -41,8 +43,9 @@ def selectTab(menuId , mainUrl , tabIdList) :
     h2Nm = html.find("h2" , {"class" : "carousel__item-heading"})  #메뉴명 ex)상품공시 , 경영공시 ..
     
     #최상위폴더 생성
-    h2NmStrip = checkExistPathOrFile("output" + "/" + h2Nm.text.strip())  #동일한 파일명 있는지 확인
-    os.mkdir(h2NmStrip)
+    if menuId not in noMakeDir :
+        h2NmStrip = checkExistPathOrFile("output" + "/" + h2Nm.text.strip())  #동일한 파일명 있는지 확인
+        os.mkdir(h2NmStrip)
 
     for tabId in tabIdList : 
         apiUrl = mainUrl + "?tab=" + tabId
@@ -50,8 +53,10 @@ def selectTab(menuId , mainUrl , tabIdList) :
         
         tabInfo = html.find("div" , id = tabId) #탭에 해당된 테이블 찾기
         tabNm = tabInfo.find("a" , {"class" : "accordion-tabs__item-toggle"}).find("span").text.strip()
-        tabPath = checkExistPathOrFile(h2NmStrip + "/" + tabNm)  #동일한 파일명 있는지 확인
-        os.mkdir(tabPath)
+
+        if menuId not in noMakeDir :
+            tabPath = checkExistPathOrFile(h2NmStrip + "/" + tabNm)  #동일한 파일명 있는지 확인
+            os.mkdir(tabPath)
         
         if menuId == "13342":   #상품공시
 
@@ -102,6 +107,30 @@ def selectTab(menuId , mainUrl , tabIdList) :
         elif menuId == '13348': #사회공헌공시
 
             socialContribution(tabInfo , tabPath , tabId)
+
+        elif menuId == '13339' : #사회공헌활동 연혁
+            socialContributionHis(tabInfo)
+
+    return
+
+def socialContributionHis(tabInfo) :
+
+    sheetPath = dataTempltExcel.get_sheet_by_name("사회공헌소식")   #엑셀 시트명
+    row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+    timelineList = tabInfo.select('.timeline__item')
+    
+    for timeline in timelineList:
+        yyyy = timeline.find("h4").text.strip().replace("년","")
+
+        contentsList = timeline.find("ul" , {"class" : "bullet-list"}).findAll("li")
+        
+        for contents in contentsList :
+            setExcelValue(sheetPath , row , '제목' , contents.text.strip()) #엑셀 셀 값 저장(제목)
+            setExcelValue(sheetPath , row , '등록일자' , yyyy) #엑셀 셀 값 저장(등록일자)
+            print("success : " , yyyy , "=> ", contents)
+            row += 1 #로우 증가
+
+    dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
 
     return
 
@@ -467,5 +496,6 @@ def getCellTitleIndex(sheetRow , titleNm):
 #주석 제외 후 실행
 # selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
 # selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
-selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
+# selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
+selectTab('13339','https://www.prudential.co.kr/about-us/social-responsibility.aspx',['contribution-history'])   #회사소개 > 사회공헌 > 사회공헌활동 연혁
