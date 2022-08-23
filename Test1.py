@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import coordinate_from_string
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
+import math
 
 
 
@@ -33,7 +34,8 @@ pruMainUrl = "https://www.prudential.co.kr"
 
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
 chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
-noMakeDir = ['13339']
+noMakeDirMenu = ['13339']
+noMakeDirTabId = ['donation' , 'social-service']
 
 def selectTab(menuId , mainUrl , tabIdList) :
 
@@ -43,7 +45,7 @@ def selectTab(menuId , mainUrl , tabIdList) :
     h2Nm = html.find("h2" , {"class" : "carousel__item-heading"})  #메뉴명 ex)상품공시 , 경영공시 ..
     
     #최상위폴더 생성
-    if menuId not in noMakeDir :
+    if menuId not in noMakeDirMenu :
         h2NmStrip = checkExistPathOrFile("output" + "/" + h2Nm.text.strip())  #동일한 파일명 있는지 확인
         os.mkdir(h2NmStrip)
 
@@ -54,7 +56,7 @@ def selectTab(menuId , mainUrl , tabIdList) :
         tabInfo = html.find("div" , id = tabId) #탭에 해당된 테이블 찾기
         tabNm = tabInfo.find("a" , {"class" : "accordion-tabs__item-toggle"}).find("span").text.strip()
 
-        if menuId not in noMakeDir :
+        if menuId not in noMakeDirMenu and tabId not in noMakeDirTabId :
             tabPath = checkExistPathOrFile(h2NmStrip + "/" + tabNm)  #동일한 파일명 있는지 확인
             os.mkdir(tabPath)
         
@@ -105,11 +107,158 @@ def selectTab(menuId , mainUrl , tabIdList) :
                     currentPage = tabInfo.find("strong" , {"class" : "SelectedPage"}).text
 
         elif menuId == '13348': #사회공헌공시
+            if tabId == 'donation' or tabId == 'social-service' :
 
-            socialContribution(tabInfo , tabPath , tabId)
+                socialContributionAccordian(tabInfo , tabId)
+
+            elif tabId == 'regulations' or tabId == 'disclosure' :
+
+                socialContribution(tabInfo , tabPath , tabId)
 
         elif menuId == '13339' : #사회공헌활동 연혁
             socialContributionHis(tabInfo)
+
+    return
+
+def socialContributionAccordian(tabInfo , tabId) : #사회공헌공시 아코디언 (기부 , 봉사활동)
+    socialContributionAccordian = tabInfo.select('.panel__block')[0]
+    accordianList = socialContributionAccordian.select('.accordion')
+
+    if tabId == 'donation' :
+
+        sheetPath = dataTempltExcel.get_sheet_by_name("사회공헌기부공시")   #엑셀 시트명
+
+    elif tabId == 'social-service' :
+
+        sheetPath = dataTempltExcel.get_sheet_by_name("사회공헌활동공시")   #엑셀 시트명
+
+    row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+
+    for accordian in accordianList :
+        yyyy = accordian.find("a")['title'].replace("년" , "").strip()
+    
+        accordianContents = accordian.find("div" , {"class" : "accordion__contents"})
+        contentsTableList = accordianContents.select(".table-holder tbody")
+        if len(contentsTableList) == 1 :
+            contentsTable = accordianContents.select(".table-holder tbody")[0]
+        else : 
+            contentsTable = accordianContents.select(".table-holder tbody")[1]
+        
+        contentsTables = contentsTable.findAll("tr")
+
+        startFor = 0
+        for contents in contentsTables :
+            
+            month = contents.find("th") #진행시기
+            # contentsTh = contents.findAll("th")
+            
+            if month != None :
+                monthStrip = month.text.replace("월", "").strip() #공백제거
+
+                if monthStrip == "합계" :
+                    continue
+
+                try :
+                    monthQ = math.ceil(int(monthStrip)/3)
+                except ValueError : 
+                    print("-------------------------------" , yyyy)
+                    setExcelValue(sheetPath , row , '년도' , yyyy) #엑셀 셀 값 저장(년도)
+                    setExcelValue(sheetPath , row , '장소' , contentsTd[0].text) #엑셀 셀 값 저장(장소)
+                    setExcelValue(sheetPath , row , '비고' , "VALUEERROR") #엑셀 셀 값 저장(비고)
+
+                    row += 1
+                    continue
+
+                try : 
+                    rowLen = int(month['rowspan'])
+                except KeyError :
+                    rowLen = 1
+                
+
+                realI = startFor
+
+                for i in range(startFor, startFor + rowLen):
+
+                    if realI != i :
+                        continue
+
+                    contentsTd = contentsTables[i].findAll("td") #세부내용 (기부항목 , 집행액 , 집행목적 등등)
+                    setExcelValue(sheetPath , row , '년도' , yyyy) #엑셀 셀 값 저장(년도)
+                    setExcelValue(sheetPath , row , '분기' , str(monthQ) + "Q") #엑셀 셀 값 저장(분기)
+                    setExcelValue(sheetPath , row , '월' , monthStrip) #엑셀 셀 값 저장(월)
+
+                    if tabId == 'donation' :
+
+                        try :
+                            tdRowLen = int(contentsTd[0]['rowspan'])
+
+                            setExcelValue(sheetPath , row , '기부항목' , contentsTd[0].text) #엑셀 셀 값 저장(기부항목)
+                            setExcelValue(sheetPath , row , '기부/집행액(백만원)' , contentsTd[1].text) #엑셀 셀 값 저장(기부/집행액(백만원))
+                            setExcelValue(sheetPath , row , '기부/집행목적' , contentsTd[2].text) #엑셀 셀 값 저장(기부/집행목적)
+                            setExcelValue(sheetPath , row , '비고' , contentsTd[3].text) #엑셀 셀 값 저장(비고)
+                            row += 1 #로우 증가
+
+                            print("success : " , yyyy , monthStrip , contentsTd[0].text , "=> " , contentsTd[2].text)
+
+                            for j in range(i + 1 , i + tdRowLen):
+
+                                contentsType = contentsTables[j].findAll("td") #세부내용 (기부항목 , 집행액 , 집행목적 등등)
+                                setExcelValue(sheetPath , row , '년도' , yyyy) #엑셀 셀 값 저장(년도)
+                                setExcelValue(sheetPath , row , '분기' , str(monthQ) + "Q") #엑셀 셀 값 저장(분기)
+                                setExcelValue(sheetPath , row , '월' , monthStrip) #엑셀 셀 값 저장(월)
+                                setExcelValue(sheetPath , row , '기부항목' , contentsTd[0].text) #엑셀 셀 값 저장(기부항목)
+                                setExcelValue(sheetPath , row , '기부/집행액(백만원)' , contentsType[0].text) #엑셀 셀 값 저장(기부/집행액(백만원))
+                                setExcelValue(sheetPath , row , '기부/집행목적' , contentsType[1].text) #엑셀 셀 값 저장(기부/집행목적)
+                                setExcelValue(sheetPath , row , '비고' , contentsType[2].text) #엑셀 셀 값 저장(비고)
+
+                                print("success : " , yyyy , monthStrip , contentsTd[0].text , "=> " , contentsType[1].text)
+
+                                row += 1 #로우 증가
+                            realI += tdRowLen -1 
+                            
+                        except KeyError :
+
+                            setExcelValue(sheetPath , row , '기부항목' , contentsTd[0].text) #엑셀 셀 값 저장(기부항목)
+                            setExcelValue(sheetPath , row , '기부/집행액(백만원)' , contentsTd[1].text) #엑셀 셀 값 저장(기부/집행액(백만원))
+                            setExcelValue(sheetPath , row , '기부/집행목적' , contentsTd[2].text) #엑셀 셀 값 저장(기부/집행목적)
+                            setExcelValue(sheetPath , row , '비고' , contentsTd[3].text) #엑셀 셀 값 저장(비고)
+
+                            print("success : " , yyyy , monthStrip , contentsTd[0].text , "=> " , contentsTd[2].text)
+                            row += 1 #로우 증가
+                    
+                    elif tabId == 'social-service' :
+                        contentsNm = contentsTables[i].find("th", {"style" : "text-align: left;"}) #th가 두개 이상인 경우
+                        
+                        if len(contentsTd) == 6 :
+                            setExcelValue(sheetPath , row , '장소' , contentsNm.text) #엑셀 셀 값 저장(장소)
+                            setExcelValue(sheetPath , row , '봉사활동' , contentsTd[0].text) #엑셀 셀 값 저장(봉사활동)
+                            setExcelValue(sheetPath , row , '참석인원 임직원 시간' , contentsTd[1].text) #엑셀 셀 값 저장(참석인원 임직원 시간)
+                            setExcelValue(sheetPath , row , '참석인원 임직원 인원' , contentsTd[2].text) #엑셀 셀 값 저장(참석인원 임직원 인원)
+                            setExcelValue(sheetPath , row , '참석인원 설계사 시간' , contentsTd[3].text) #엑셀 셀 값 저장(참석인원 설계사 시간)
+                            setExcelValue(sheetPath , row , '참석인원 설계사 인원' , contentsTd[4].text) #엑셀 셀 값 저장(참석인원 설계사 인원)
+                            setExcelValue(sheetPath , row , '비고' , contentsTd[5].text) #엑셀 셀 값 저장(비고)
+                            
+                            print("success : " , yyyy , monthStrip , contentsNm.text , "=> " , contentsTd[0].text)
+                        # else :
+                        elif len(contentsTd) == 7 :
+                            setExcelValue(sheetPath , row , '장소' , contentsTd[0].text) #엑셀 셀 값 저장(장소)
+                            setExcelValue(sheetPath , row , '봉사활동' , contentsTd[1].text) #엑셀 셀 값 저장(봉사활동)
+                            setExcelValue(sheetPath , row , '참석인원 임직원 시간' , contentsTd[2].text) #엑셀 셀 값 저장(참석인원 임직원 시간)
+                            setExcelValue(sheetPath , row , '참석인원 임직원 인원' , contentsTd[3].text) #엑셀 셀 값 저장(참석인원 임직원 인원)
+                            setExcelValue(sheetPath , row , '참석인원 설계사 시간' , contentsTd[4].text) #엑셀 셀 값 저장(참석인원 설계사 시간)
+                            setExcelValue(sheetPath , row , '참석인원 설계사 인원' , contentsTd[5].text) #엑셀 셀 값 저장(참석인원 설계사 인원)
+                            setExcelValue(sheetPath , row , '비고' , contentsTd[6].text) #엑셀 셀 값 저장(비고)
+
+                            print("success : " , yyyy , monthStrip , contentsTd[0].text , "=> " , contentsTd[1].text)
+
+                        row += 1 #로우 증가
+
+                    realI += 1
+                
+                startFor += rowLen
+                
+
+    dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
 
     return
 
@@ -127,7 +276,7 @@ def socialContributionHis(tabInfo) :
         for contents in contentsList :
             setExcelValue(sheetPath , row , '제목' , contents.text.strip()) #엑셀 셀 값 저장(제목)
             setExcelValue(sheetPath , row , '등록일자' , yyyy) #엑셀 셀 값 저장(등록일자)
-            print("success : " , yyyy , "=> ", contents)
+            print("success : " , yyyy , "=> ", contents.text.strip())
             row += 1 #로우 증가
 
     dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
@@ -495,7 +644,7 @@ def getCellTitleIndex(sheetRow , titleNm):
 
 #주석 제외 후 실행
 # selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
-# selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
-# selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
+selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['donation','social-service'])  #사회공헌공시 (기부 및 집행 세부내역 , 사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시) ['donation','social-service','regulations','disclosure']
+selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
 selectTab('13339','https://www.prudential.co.kr/about-us/social-responsibility.aspx',['contribution-history'])   #회사소개 > 사회공헌 > 사회공헌활동 연혁
