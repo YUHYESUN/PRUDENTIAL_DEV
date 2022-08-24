@@ -35,7 +35,7 @@ pruMainUrl = "https://www.prudential.co.kr"
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
 chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
 noMakeDirMenu = ['13339']
-noMakeDirTabId = ['donation' , 'social-service']
+noMakeDirTabId = ['donation' , 'social-service' ,'variable-insurance-product-disclosure']
 
 def selectTab(menuId , mainUrl , tabIdList) :
 
@@ -85,8 +85,27 @@ def selectTab(menuId , mainUrl , tabIdList) :
                 product(tabInfo , optionPath)
 
         elif menuId == "13343":  #변액공시
-            
-            variableInsurance(tabInfo , tabPath)
+            if tabId == 'insurance-disclosure-at-any-time' :
+                  #페이지로 구성되어 있음 
+                #페이지 1씩 더하다가 체크된 페이지랑 url에 입력된 페이지랑 맞지 않으면 스탑
+                insertPage = "1"
+                currentPage = tabInfo.find("strong" , {"class" : "SelectedPage"}).text
+
+                while insertPage == currentPage :  #없는 페이지이면 스탑
+                    insertPage = str(int(insertPage) + 1)
+                    variableInsuranceAccordian(tabInfo , tabPath)
+
+                    url = apiUrl + "&variableinsurance=" + insertPage
+                    html = getPageSourceHtml(url)# html을 문자열로 가져온다.
+                    tabInfo = html.find("div" , id = tabId) #탭에 해당된 테이블 찾기
+                    currentPage = tabInfo.find("strong" , {"class" : "SelectedPage"}).text
+                
+            elif tabId == 'operating-manual' or tabId == 'trust-terms' :
+                variableInsurance(tabInfo , tabPath)
+
+            elif tabId == 'variable-insurance-product-disclosure' : 
+
+                 variableInsuranceBoxList(tabInfo)
         
         elif menuId == '13347': #경영공시
             if tabId == 'regular' or tabId == 'governance' :
@@ -117,6 +136,79 @@ def selectTab(menuId , mainUrl , tabIdList) :
 
         elif menuId == '13339' : #사회공헌활동 연혁
             socialContributionHis(tabInfo)
+
+    return
+
+def variableInsuranceBoxList(tabInfo) :
+    variableInsuranceBoxList = tabInfo.select('.panel__block')[0]
+    boxList = variableInsuranceBoxList.select('.box-list__col')
+
+    for box in boxList :
+        print(box.find("a"))
+
+    return
+
+def variableInsuranceAccordian(tabInfo , tabPath) :
+    variableInsuranceAccordian = tabInfo.select('.panel__block')[0]
+    accordianList = variableInsuranceAccordian.select('.accordion')
+    sheetPath = dataTempltExcel.get_sheet_by_name("변액보험수시공시")   #엑셀 시트명
+    row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+
+    for accordian in accordianList :
+        rgstP = accordian.find("p" , {"class": "accordion__cover-small"} )
+        rgstDt = rgstP.text.replace("공시 일자 ","").strip()
+        rgstYYYY = rgstDt[:4]
+        rgstMM = rgstDt[5:7]
+
+        yyyyPath = tabPath + "/" + rgstYYYY
+        os.makedirs(yyyyPath , exist_ok= True)
+
+        lastPath = yyyyPath + "/" + rgstMM + "월"
+        os.makedirs(lastPath , exist_ok= True)
+        
+        fileDiv = accordian.find("div" , {"class": "accordion__contents"})
+        mainTopic = accordian.find("a" , {"class": "accordion__pointer"} )["title"]
+        setExcelValue(sheetPath , row , '제목(공시내용)' , mainTopic) #엑셀 셀 값 저장(제목)
+        setExcelValue(sheetPath , row , '등록일자' , rgstDt.replace("-","")) #엑셀 셀 값 저장(작성일)
+        setExcelValue(sheetPath , row , '내용' , str(fileDiv)) #엑셀 셀 값 저장(내용)
+
+        accordianContents = accordian.find("div" , {"class" : "accordion__contents"})
+        contentsTableList = accordianContents.select(".table-holder tbody")
+        filePathListStr = ""
+
+        for contentsTable in contentsTableList :
+            fileList = contentsTable.find("tr").findAll("a")
+            
+            for file in fileList :
+
+                
+
+                fileDownLoadUrl = file["href"].strip()        #다운로드할 파일 url
+
+                if fileDownLoadUrl.find(pruMainUrl) == -1 :
+                    fileDownLoadUrl = pruMainUrl + fileDownLoadUrl
+                
+                fileImg = file.find("img")
+                fileFont = file.find("font")
+                if fileImg != None :
+                    saveName = fileImg["alt"]
+                elif fileFont != None :
+                    saveName = fileFont.text   
+
+                downloadPath = lastPath + "/" + saveName      #저장 경로
+
+                try:
+                    download(fileDownLoadUrl , downloadPath)
+                    filePathListStr += downloadPath + ","
+                    print("success : " , downloadPath)
+                except urllib.error.HTTPError as e:
+                    print("failed:", e)
+
+        
+        print("success : " , filePathListStr)
+        row += 1 #로우 증가
+    # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+
 
     return
 
@@ -643,8 +735,8 @@ def getCellTitleIndex(sheetRow , titleNm):
 
 
 #주석 제외 후 실행
-# selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
-selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['donation','social-service'])  #사회공헌공시 (기부 및 집행 세부내역 , 사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시) ['donation','social-service','regulations','disclosure']
-selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
+selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['variable-insurance-product-disclosure'])  #변액공시 (운용설명서 , 신탁약관)['operating-manual','trust-terms','insurance-disclosure-at-any-time','variable-insurance-product-disclosure']
+# selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['donation','social-service'])  #사회공헌공시 (기부 및 집행 세부내역 , 사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시) ['donation','social-service','regulations','disclosure']
+# selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
-selectTab('13339','https://www.prudential.co.kr/about-us/social-responsibility.aspx',['contribution-history'])   #회사소개 > 사회공헌 > 사회공헌활동 연혁
+# selectTab('13339','https://www.prudential.co.kr/about-us/social-responsibility.aspx',['contribution-history'])   #회사소개 > 사회공헌 > 사회공헌활동 연혁
