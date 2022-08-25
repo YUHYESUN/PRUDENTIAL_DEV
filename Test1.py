@@ -146,8 +146,9 @@ def variableInsuranceBoxList(tabInfo) :
     variableInsuranceBoxList = tabInfo.select('.panel__block')[0]
     boxList = variableInsuranceBoxList.select('.box-list__col')
 
-    tabList = [ "variable-product-tab3" ,"variable-product-tab2"]  #"variable-product-tab2" ,
-
+    tabList = ["variable-product-tab2", "variable-product-tab3"] #자산구성 / 자산부채
+    
+    #자세히 보기 
     for box in boxList :
         routeUrl = box.find("a")["href"]
 
@@ -162,23 +163,14 @@ def variableInsuranceBoxList(tabInfo) :
     return
 
 def clickVariableInsurance(url , tabList , prodList) :
-    # soup = getPageSourceHtml(url)
-    
-    
-    # section0 = soup.select('.section__block')[0]
-    # section1 = soup.select('.section__block')[1]
-    # section0ProdList = section0.findAll("label")
-    # print(soup1.find_element(By.ID,'variable-product-tab2'))
 
     for tab in tabList :
         url = url + "&tab=" + tab
-        # soup1 = getPageSourceHtmlSel(url)
         chromeDriver.get(url)
         time.sleep(5)
-        
-        # tabContents = section1.find("div" , id = tab)
+
+        #변액보험은 js렌더링 후 데이터 불러옴
         tabContents = chromeDriver.find_element(By.ID, tab)
-        # tabTable = tabContents.find("div" , {"class" : "panel__block"})
         tabTable = tabContents.find_element(By.CLASS_NAME , "panel__block")
         if tab == "variable-product-tab2" :
             sheetPath = dataTempltExcel.get_sheet_by_name("자산구성내역(변액보험)")   #엑셀 시트명
@@ -195,39 +187,9 @@ def clickVariableInsurance(url , tabList , prodList) :
             productList = tabTable.find_elements(By.CLASS_NAME , "panel__block")
         row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
 
-        # labelList = tabTable.findAll('label')
-        # yyyy = labelList[0].text.strip()
-        # mm = labelList[1].text.strip()
-        # dd = labelList[2].text.strip()
-        # yyyy = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblYear").text
-        # mm = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblMonth").text 
-
-        # panelContents = tabTable.find_elements(By.CLASS_NAME , "panel__block")[1]
-        
-        # productList = panelContents.find_elements(By.CLASS_NAME , "panel__block")
-
-        # if len(productList) == 0 :
-        #     productList = tabTable.findAll("div" , {"class" : "panel__block"})
-
-
         for product in productList :
             typeNm = product.find_element(By.TAG_NAME,"p").text
             content = product.find_element(By.TAG_NAME,"table").get_attribute("outerHTML")
-            # typeNm = product.find("p").find("b").text.strip()
-            # content = product.find("table")
-
-            # setExcelValueVI(sheetPath , row , '공시구분' , "변액보험") #엑셀 셀 값 저장(공시구분)
-            # setExcelValueVI(sheetPath , row , '현황구분' , sheetName) #엑셀 셀 값 저장(현황구분)
-            # setExcelValueVI(sheetPath , row , '상품명' , prodNm.text.strip()) #엑셀 셀 값 저장(상품명)
-            # setExcelValueVI(sheetPath , row , '구분(펀드)' , typeNm) #엑셀 셀 값 저장(구분(펀드))
-            # setExcelValueVI(sheetPath , row , '기준년' , yyyy) #엑셀 셀 값 저장(기준년)
-            # setExcelValueVI(sheetPath , row , '기준일' , mm) #엑셀 셀 값 저장(기준월)
-            # setExcelValueVI(sheetPath , row , '상품코드' , str(content)) #엑셀 셀 값 저장(기준월)
-
-            # print("success : " , sheetName , "=> " , prodNm.text.strip() , typeNm)
-
-            # row += 1
-            # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
 
             for prodNm in prodList :
 
@@ -242,7 +204,6 @@ def clickVariableInsurance(url , tabList , prodList) :
                 print("success : " , sheetName , "=> " , typeNm, "/" ,prodNm)
 
                 row += 1
-                # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장
 
             dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장  
            
@@ -280,8 +241,6 @@ def variableInsuranceAccordian(tabInfo , tabPath) :
             fileList = contentsTable.find("tr").findAll("a")
             
             for file in fileList :
-
-                
 
                 fileDownLoadUrl = file["href"].strip()        #다운로드할 파일 url
 
@@ -342,7 +301,6 @@ def socialContributionAccordian(tabInfo , tabId) : #사회공헌공시 아코디
         for contents in contentsTables :
             
             month = contents.find("th") #진행시기
-            # contentsTh = contents.findAll("th")
             
             if month != None :
                 monthStrip = month.text.replace("월", "").strip() #공백제거
@@ -812,15 +770,6 @@ def getPageSourceHtml(url) :  # 페이지 소스 html변환
     # html = response.text
     # beautifulsoup 사용하기
     soup = BeautifulSoup(html,'html.parser')
-
-    return soup
-
-def getPageSourceHtmlSel(url) :  # 페이지 소스 html변환
-    chromeDriver.get(url)
-
-    time.sleep(3)
-
-    soup = chromeDriver
 
     return soup
 
