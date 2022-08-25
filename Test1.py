@@ -242,9 +242,9 @@ def clickVariableInsurance(url , tabList , prodList) :
                 print("success : " , sheetName , "=> " , typeNm, "/" ,prodNm)
 
                 row += 1
-                # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+                # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장
 
-    dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+            dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장  
            
     return
 
