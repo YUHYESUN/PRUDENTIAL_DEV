@@ -1,4 +1,5 @@
 
+
 from bs4 import BeautifulSoup
 import os
 import urllib.request
@@ -7,7 +8,9 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import coordinate_from_string
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 import math
+import time
 
 
 
@@ -143,9 +146,103 @@ def variableInsuranceBoxList(tabInfo) :
     variableInsuranceBoxList = tabInfo.select('.panel__block')[0]
     boxList = variableInsuranceBoxList.select('.box-list__col')
 
-    for box in boxList :
-        print(box.find("a"))
+    tabList = [ "variable-product-tab3" ,"variable-product-tab2"]  #"variable-product-tab2" ,
 
+    for box in boxList :
+        routeUrl = box.find("a")["href"]
+
+        prodAll = box.find("div" , {"class" : "box-list__box-heading --small"}).text.strip()
+        prodList = prodAll.split("\n\n")
+
+        if routeUrl.find(pruMainUrl) == -1 :
+            routeUrl = pruMainUrl + routeUrl
+
+        clickVariableInsurance(routeUrl , tabList , prodList)
+
+    return
+
+def clickVariableInsurance(url , tabList , prodList) :
+    # soup = getPageSourceHtml(url)
+    
+    
+    # section0 = soup.select('.section__block')[0]
+    # section1 = soup.select('.section__block')[1]
+    # section0ProdList = section0.findAll("label")
+    # print(soup1.find_element(By.ID,'variable-product-tab2'))
+
+    for tab in tabList :
+        url = url + "&tab=" + tab
+        # soup1 = getPageSourceHtmlSel(url)
+        print(url)
+        chromeDriver.get(url)
+
+        time.sleep(10)
+        if tab == "variable-product-tab2" :
+            sheetPath = dataTempltExcel.get_sheet_by_name("자산구성내역(변액보험)")   #엑셀 시트명
+            sheetName = "자산구성내역"
+        elif tab == "variable-product-tab3" :
+            sheetPath = dataTempltExcel.get_sheet_by_name("자산부채현황(변액보험)")   #엑셀 시트명
+            sheetName = "자산부채현황"
+        row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+        
+        # tabContents = section1.find("div" , id = tab)
+        tabContents = chromeDriver.find_element(By.ID,'variable-product-tab2')
+        # tabTable = tabContents.find("div" , {"class" : "panel__block"})
+        tabTable = tabContents.find_element(By.CLASS_NAME , "panel__block")
+
+        # labelList = tabTable.findAll('label')
+        # yyyy = labelList[0].text.strip()
+        # mm = labelList[1].text.strip()
+        # dd = labelList[2].text.strip()
+        yyyy = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblYear").text
+        mm = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblMonth").text 
+
+        panelContents = tabTable.find_elements(By.CLASS_NAME , "panel__block")[1]
+        
+        productList = panelContents.find_elements(By.CLASS_NAME , "panel__block")
+
+        # if len(productList) == 0 :
+        #     productList = tabTable.findAll("div" , {"class" : "panel__block"})
+
+
+        for product in productList :
+            typeNm = product.find_element(By.TAG_NAME,"p").text
+            content = product.find_element(By.TAG_NAME,"table").get_attribute("outerHTML")
+            print(typeNm,"----------------------")
+        
+            # typeNm = product.find("p").find("b").text.strip()
+            # content = product.find("table")
+
+            # setExcelValueVI(sheetPath , row , '공시구분' , "변액보험") #엑셀 셀 값 저장(공시구분)
+            # setExcelValueVI(sheetPath , row , '현황구분' , sheetName) #엑셀 셀 값 저장(현황구분)
+            # setExcelValueVI(sheetPath , row , '상품명' , prodNm.text.strip()) #엑셀 셀 값 저장(상품명)
+            # setExcelValueVI(sheetPath , row , '구분(펀드)' , typeNm) #엑셀 셀 값 저장(구분(펀드))
+            # setExcelValueVI(sheetPath , row , '기준년' , yyyy) #엑셀 셀 값 저장(기준년)
+            # setExcelValueVI(sheetPath , row , '기준일' , mm) #엑셀 셀 값 저장(기준월)
+            # setExcelValueVI(sheetPath , row , '상품코드' , str(content)) #엑셀 셀 값 저장(기준월)
+
+            # print("success : " , sheetName , "=> " , prodNm.text.strip() , typeNm)
+
+            # row += 1
+            # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+
+            for prodNm in prodList :
+
+                setExcelValueVI(sheetPath , row , '공시구분' , "변액보험") #엑셀 셀 값 저장(공시구분)
+                setExcelValueVI(sheetPath , row , '현황구분' , sheetName) #엑셀 셀 값 저장(현황구분)
+                setExcelValueVI(sheetPath , row , '상품명' , prodNm) #엑셀 셀 값 저장(상품명)
+                setExcelValueVI(sheetPath , row , '구분(펀드)' , typeNm) #엑셀 셀 값 저장(구분(펀드))
+                setExcelValueVI(sheetPath , row , '기준년' , yyyy) #엑셀 셀 값 저장(기준년)
+                setExcelValueVI(sheetPath , row , '기준일' , mm) #엑셀 셀 값 저장(기준월)
+                setExcelValueVI(sheetPath , row , '상품코드' , str(content)) #엑셀 셀 값 저장(기준월)
+
+                print("success : " , sheetName , "=> " , prodNm , typeNm)
+
+                row += 1
+                dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+
+    # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+           
     return
 
 def variableInsuranceAccordian(tabInfo , tabPath) :
@@ -715,15 +812,28 @@ def getPageSourceHtml(url) :  # 페이지 소스 html변환
 
     return soup
 
+def getPageSourceHtmlSel(url) :  # 페이지 소스 html변환
+    chromeDriver.get(url)
+
+    time.sleep(3)
+
+    soup = chromeDriver
+
+    return soup
+
 def setExcelValue(sheetPath , rowNum , cellNm , value):  #(시트 , 로우 , 칼럼명 , 데이터)
     cellNum = getCellTitleIndex(sheetPath[2] , cellNm)
+    sheetPath.cell(rowNum,cellNum).value = value    #엑셀 셀 값 저장
+
+def setExcelValueVI(sheetPath , rowNum , cellNm , value):  #(시트 , 로우 , 칼럼명 , 데이터)
+    cellNum = getCellTitleIndex(sheetPath[3] , cellNm)
     sheetPath.cell(rowNum,cellNum).value = value    #엑셀 셀 값 저장
 
 #템플릿 엑셀의 칼럼명의 인덱스 조회
 def getCellTitleIndex(sheetRow , titleNm):
     
     def getValue(cell):
-        return cell.value.strip()
+        return cell.value
 
     cellTitleList = list(map(getValue , sheetRow))
     index = cellTitleList.index(titleNm)
