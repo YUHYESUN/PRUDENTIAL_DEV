@@ -1,5 +1,3 @@
-
-
 from bs4 import BeautifulSoup
 import os
 import urllib.request
@@ -209,7 +207,7 @@ def clickVariableInsurance(url , tabList , prodList) :
            
     return
 
-def variableInsuranceAccordian(tabInfo , tabPath) :
+def variableInsuranceAccordian(tabInfo , tabPath) : # tapPath : 변액보험공시/변액보험수시공시
     variableInsuranceAccordian = tabInfo.select('.panel__block')[0]
     accordianList = variableInsuranceAccordian.select('.accordion')
     sheetPath = dataTempltExcel.get_sheet_by_name("변액보험수시공시")   #엑셀 시트명
@@ -221,53 +219,78 @@ def variableInsuranceAccordian(tabInfo , tabPath) :
         rgstYYYY = rgstDt[:4]
         rgstMM = rgstDt[5:7]
 
-        yyyyPath = tabPath + "/" + rgstYYYY
+        yyyyPath = tabPath + "/" + rgstYYYY 
         os.makedirs(yyyyPath , exist_ok= True)
 
-        lastPath = yyyyPath + "/" + rgstMM + "월"
-        os.makedirs(lastPath , exist_ok= True)
-        
-        fileDiv = accordian.find("div" , {"class": "accordion__contents"})
-        mainTopic = accordian.find("a" , {"class": "accordion__pointer"} )["title"]
-        setExcelValue(sheetPath , row , '제목(공시내용)' , mainTopic) #엑셀 셀 값 저장(제목)
-        setExcelValue(sheetPath , row , '등록일자' , rgstDt.replace("-","")) #엑셀 셀 값 저장(작성일)
-        setExcelValue(sheetPath , row , '내용' , str(fileDiv)) #엑셀 셀 값 저장(내용)
+        mmPath = yyyyPath + "/" + rgstMM + "월"
+        os.makedirs(mmPath , exist_ok= True)
 
-        accordianContents = accordian.find("div" , {"class" : "accordion__contents"})
-        contentsTableList = accordianContents.select(".table-holder tbody")
+        lastPath = mmPath + "/" + rgstDt
+        os.makedirs(lastPath , exist_ok= True)
+
+        accordianContents = accordian.find("div" , {"class": "accordion__contents"})
+        mainTopic = accordian.find("a" , {"class": "accordion__pointer"} )["title"]
+        sheetPath.cell(row,2).value = mainTopic    # 제목
+        sheetPath.cell(row,3).value = str(accordianContents) # 내용
+        sheetPath.cell(row,4).value = rgstDt.replace("-","")    # 등록일자
+
+        fileList = accordianContents.findAll("a")
+        imgList = accordianContents.findAll("img")
         filePathListStr = ""
 
-        for contentsTable in contentsTableList :
-            fileList = contentsTable.find("tr").findAll("a")
+        for file in fileList:
+            if str(file).find('getattachment') == -1: # 첨부파일아니면 넘어가
+                continue
+            fileDownLoadUrl = file["href"].strip()        #다운로드할 파일 url
+
+            if fileDownLoadUrl.find('www.prudential.co.kr') == -1:
+                fileDownLoadUrl = pruMainUrl + fileDownLoadUrl
             
-            for file in fileList :
-
-                fileDownLoadUrl = file["href"].strip()        #다운로드할 파일 url
-
-                if fileDownLoadUrl.find(pruMainUrl) == -1 :
-                    fileDownLoadUrl = pruMainUrl + fileDownLoadUrl
-                
-                fileImg = file.find("img")
-                fileFont = file.find("font")
-                if fileImg != None :
-                    saveName = fileImg["alt"]
-                elif fileFont != None :
-                    saveName = fileFont.text   
-
+            fileImg = file.find("img")
+            fileFont = file.find("font")
+            if fileImg != None : # 첨부파일명
+                saveName = fileImg["alt"]
                 downloadPath = lastPath + "/" + saveName      #저장 경로
+            elif fileFont != None : # 펀드명
+                fileNm = fileDownLoadUrl[fileDownLoadUrl.rfind('/')+1:]
+                fileNm = fileNm[:fileNm.rfind('.')] # VA혼합형_2022_2.pdf
+                filePath = lastPath + "/fund/" + fileFont.text
+                os.makedirs(filePath , exist_ok= True)
+                saveName = fileNm
+                downloadPath = filePath + "/" + saveName      #저장 경로
 
-                try:
-                    download(fileDownLoadUrl , downloadPath)
-                    filePathListStr += downloadPath + ","
-                    print("success : " , downloadPath)
-                except urllib.error.HTTPError as e:
-                    print("failed:", e)
+            try:
+                download(fileDownLoadUrl , downloadPath)
+                filePathListStr += downloadPath + ","
+                print("success : " , downloadPath)
+            except urllib.error.HTTPError as e:
+                print("failed:", e)
 
-        
-        print("success : " , filePathListStr)
-        row += 1 #로우 증가
-    # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+        for file in imgList:
+            if str(file).find('getattachment') == -1: # 첨부파일 아니면 넘어가
+                continue
+            fileDownLoadUrl = file["src"].strip()        #다운로드할 파일 url
 
+            if fileDownLoadUrl.find('www.prudential.co.kr') == -1:
+                fileDownLoadUrl = pruMainUrl + fileDownLoadUrl
+            saveName = fileDownLoadUrl[fileDownLoadUrl.rfind('/')+1:]
+            saveName = saveName[:saveName.rfind('.')] # 신규펀드-공시-캡처.PNG
+
+            filePath = lastPath + "/img"
+            os.makedirs(filePath , exist_ok= True)
+            downloadPath = filePath + "/" + saveName      #저장 경로
+
+            try:
+                download(fileDownLoadUrl , downloadPath)
+                filePathListStr += downloadPath + ","
+                print("success : " , downloadPath)
+            except urllib.error.HTTPError as e:
+                print("failed:", e)
+
+        sheetPath.cell(row,5).value = filePathListStr    # 첨부파일 경로명
+        row += 1
+
+    dataTempltExcel.save('output/variableAnyTime.xlsx')  #엑셀 다른이름 저장 
 
     return
 
@@ -797,7 +820,7 @@ def getCellTitleIndex(sheetRow , titleNm):
 
 
 #주석 제외 후 실행
-selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['variable-insurance-product-disclosure'])  #변액공시 (운용설명서 , 신탁약관)['operating-manual','trust-terms','insurance-disclosure-at-any-time','variable-insurance-product-disclosure']
+selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['variable-insurance-product-disclosure', 'insurance-disclosure-at-any-time'])  #변액공시 (상품공시, 수시공시)['variable-insurance-product-disclosure', 'insurance-disclosure-at-any-time']
 # selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['donation','social-service'])  #사회공헌공시 (기부 및 집행 세부내역 , 사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시) ['donation','social-service','regulations','disclosure']
 # selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
