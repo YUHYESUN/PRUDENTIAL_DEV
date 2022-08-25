@@ -173,33 +173,38 @@ def clickVariableInsurance(url , tabList , prodList) :
     for tab in tabList :
         url = url + "&tab=" + tab
         # soup1 = getPageSourceHtmlSel(url)
-        print(url)
         chromeDriver.get(url)
-
-        time.sleep(10)
+        time.sleep(5)
+        
+        # tabContents = section1.find("div" , id = tab)
+        tabContents = chromeDriver.find_element(By.ID, tab)
+        # tabTable = tabContents.find("div" , {"class" : "panel__block"})
+        tabTable = tabContents.find_element(By.CLASS_NAME , "panel__block")
         if tab == "variable-product-tab2" :
             sheetPath = dataTempltExcel.get_sheet_by_name("자산구성내역(변액보험)")   #엑셀 시트명
             sheetName = "자산구성내역"
+            yyyy = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblYear").text
+            mm = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblMonth").text 
+            panelContents = tabTable.find_elements(By.CLASS_NAME , "panel__block")[1]
+            productList = panelContents.find_elements(By.CLASS_NAME , "panel__block")
         elif tab == "variable-product-tab3" :
             sheetPath = dataTempltExcel.get_sheet_by_name("자산부채현황(변액보험)")   #엑셀 시트명
             sheetName = "자산부채현황"
+            yyyy = tabTable.find_element(By.CLASS_NAME,"lblYear").text
+            mm = tabTable.find_element(By.CLASS_NAME,"lblMonth").text 
+            productList = tabTable.find_elements(By.CLASS_NAME , "panel__block")
         row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
-        
-        # tabContents = section1.find("div" , id = tab)
-        tabContents = chromeDriver.find_element(By.ID,'variable-product-tab2')
-        # tabTable = tabContents.find("div" , {"class" : "panel__block"})
-        tabTable = tabContents.find_element(By.CLASS_NAME , "panel__block")
 
         # labelList = tabTable.findAll('label')
         # yyyy = labelList[0].text.strip()
         # mm = labelList[1].text.strip()
         # dd = labelList[2].text.strip()
-        yyyy = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblYear").text
-        mm = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblMonth").text 
+        # yyyy = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblYear").text
+        # mm = tabTable.find_elements(By.CLASS_NAME , "panel__block")[0].find_element(By.CLASS_NAME,"lblMonth").text 
 
-        panelContents = tabTable.find_elements(By.CLASS_NAME , "panel__block")[1]
+        # panelContents = tabTable.find_elements(By.CLASS_NAME , "panel__block")[1]
         
-        productList = panelContents.find_elements(By.CLASS_NAME , "panel__block")
+        # productList = panelContents.find_elements(By.CLASS_NAME , "panel__block")
 
         # if len(productList) == 0 :
         #     productList = tabTable.findAll("div" , {"class" : "panel__block"})
@@ -208,8 +213,6 @@ def clickVariableInsurance(url , tabList , prodList) :
         for product in productList :
             typeNm = product.find_element(By.TAG_NAME,"p").text
             content = product.find_element(By.TAG_NAME,"table").get_attribute("outerHTML")
-            print(typeNm,"----------------------")
-        
             # typeNm = product.find("p").find("b").text.strip()
             # content = product.find("table")
 
@@ -236,12 +239,12 @@ def clickVariableInsurance(url , tabList , prodList) :
                 setExcelValueVI(sheetPath , row , '기준일' , mm) #엑셀 셀 값 저장(기준월)
                 setExcelValueVI(sheetPath , row , '상품코드' , str(content)) #엑셀 셀 값 저장(기준월)
 
-                print("success : " , sheetName , "=> " , prodNm , typeNm)
+                print("success : " , sheetName , "=> " , typeNm, "/" ,prodNm)
 
                 row += 1
-                dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+                # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
 
-    # dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
+    dataTempltExcel.save('output/test.xlsx')  #엑셀 다른이름 저장 
            
     return
 
