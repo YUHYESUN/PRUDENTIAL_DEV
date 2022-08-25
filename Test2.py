@@ -1,3 +1,4 @@
+from tkinter.tix import Select
 from bs4 import BeautifulSoup
 import os
 import urllib.request
@@ -5,6 +6,8 @@ from requests import get
 from openpyxl import load_workbook
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import Select
+import time
 
 '''
 1. 공시실 최상위 메뉴 선택 (상품공시 , 경영공시 등등)
@@ -26,6 +29,7 @@ commit test123 123
 '''
 
 pruMainUrl = "https://www.prudential.co.kr"
+pruMainUrl2 = "www.prudential.co.kr"
 chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
 urlDict = {}
@@ -41,6 +45,21 @@ def selectTab(menuId , mainUrl , tabIdList) :
     h2NmStrip = checkExistPathOrFile("output" + "/" + h2Nm.text.strip())  #동일한 파일명 있는지 확인
     os.mkdir(h2NmStrip)
 
+    if menuId == '13340': # 공지사항
+        #페이지로 구성되어 있음 
+        #페이지 1씩 더하다가 체크된 페이지랑 url에 입력된 페이지랑 맞지 않으면 스탑
+        insertPage = "1"
+        currentPage = html.find("strong" , {"class" : "SelectedPage"}).text
+
+        while insertPage == currentPage :  #없는 페이지이면 스탑
+            insertPage = str(int(insertPage) + 1)
+            noticeAccordian(html, h2NmStrip)
+            url = mainUrl + "?page=" + insertPage
+            html = getPageSourceHtml(url)# html을 문자열로 가져온다.
+            currentPage = html.find("strong" , {"class" : "SelectedPage"}).text
+
+        return
+
     for tabId in tabIdList : 
         apiUrl = mainUrl + "?tab=" + tabId
         html = getPageSourceHtml(apiUrl) # html을 문자열로 가져온다.
@@ -48,9 +67,41 @@ def selectTab(menuId , mainUrl , tabIdList) :
         tabInfo = html.find("div" , id = tabId) #탭에 해당된 테이블 찾기
         tabNm = tabInfo.find("a" , {"class" : "accordion-tabs__item-toggle"}).find("span").text.strip()
         tabPath = checkExistPathOrFile(h2NmStrip + "/" + tabNm)  #동일한 파일명 있는지 확인
-        os.mkdir(tabPath)
+        # os.mkdir(tabPath)
         
-        if menuId == "13342":   #상품공시
+        
+        if menuId == '13341': # 퇴직연금공시
+            if tabId == 'asset-liabilities': # 자산부채현황
+                yearOptionId = 'ddlAssetLiabilitiesYear'
+                monthOptionId = 'ddlAssetLiabilitiesMonth'
+                year = '&aly='
+                month = '&alm='
+            else:
+                yearOptionId = 'ddlAssetCompositionYear'
+                monthOptionId = 'ddlAssetCompositionMonth'
+                year = '&acy='
+                month = '&acm='
+
+            alyList = tabInfo.find("select", id = yearOptionId)
+            yearOptions = alyList.findAll("option")
+
+            yearSelect = Select(chromeDriver.find_element('id', yearOptionId))
+            urlList = []
+            for yearOption in yearOptions:
+                yearOptionVal = yearOption["value"]
+                yearSelect.select_by_value(yearOptionVal)
+                time.sleep(1)
+                selectMonth = Select(chromeDriver.find_element('id', monthOptionId))
+                monthOptions = selectMonth.options
+
+                for monthOption in monthOptions:
+                    monthOptionVal = monthOption.text
+                    url = apiUrl + year + yearOptionVal + month + monthOptionVal
+                    urlList.append(url)
+            
+            retirementContribution(urlList, tabId) 
+
+        elif menuId == "13342":   #상품공시
 
             if tabId == "currently-selling" :   #옵션아이디가 탭별로 다름
                 optionId = "ddlContract"
@@ -97,12 +148,132 @@ def selectTab(menuId , mainUrl , tabIdList) :
                     currentPage = tabInfo.find("strong" , {"class" : "SelectedPage"}).text
 
         elif menuId == '13348': #사회공헌공시
-
             socialContribution(tabInfo , tabPath , tabId)
+        
+        
+ 
 
     return
 
-def cmpyInformationAccordian(tabInfo , tabPath ) : #경영공시 아코디언 형식
+def retirementContribution(urlList, tabId):
+    if tabId == 'asset-liabilities': # 자산부채현황
+        sheetPath = dataTempltExcel.get_sheet_by_name("자산부채현황(연금저축,자산연계,퇴직연금)")  #엑셀 시트명
+        tabNm = '자산부채현황'
+    else:
+        sheetPath = dataTempltExcel.get_sheet_by_name("자산구성내역(연금저축,자산연계,퇴직연금)")   #엑셀 시트명
+        tabNm = '자산구성내역'
+
+    row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+    for url in urlList:
+        html = getPageSourceHtml(url)# html을 문자열로 가져온다.
+        
+        year = url[url.find('&')+5:url.rfind('&')]
+        month = url[url.rfind('=')+1:]
+        if len(month) < 2:
+            month = '0' + month
+
+        if tabId == 'asset-liabilities': # 자산부채현황
+            table = html.find("table", {"class":"--compact-2"})
+        else:
+            div = html.findAll("div", {"class":"--compact"})[3]
+            table = div.find("table")
+        
+        sheetPath.cell(row,2).value = "퇴직연금"    # 공시구분
+        sheetPath.cell(row,3).value = tabNm   # 현황구분
+        sheetPath.cell(row,4).value = year   # 기준년
+        sheetPath.cell(row,5).value = month   # 기준월
+        sheetPath.cell(row,6).value = str(table)    # 내용 (CLOB)
+
+        row += 1
+
+    dataTempltExcel.save('output/retire.xlsx')  #엑셀 다른이름 저장 
+    return
+    
+def noticeAccordian(info , path) : # 공지사항 아코디언 형식
+    noticeAccordian = info.select('.section__pull-into-previous')[0]
+    accordianList = noticeAccordian.select('.accordion')
+
+    sheetPath = dataTempltExcel.get_sheet_by_name("구매입찰공시")   #엑셀 시트명
+    row = sheetPath.max_row + 1 #엑셀 로우 시작 (마지막 로우 조회) 
+    
+    for accordian in accordianList :
+        rgstP = accordian.find("p" , {"class": "accordion__cover-small"} )
+        rgstDt = rgstP.text.strip()
+        rgstYYYY = rgstDt[:4]
+        rgstMM = rgstDt[5:7]
+
+        yyyyPath = path + "/" + rgstYYYY
+        os.makedirs(yyyyPath , exist_ok= True)
+
+        monthPath = yyyyPath + "/" + rgstMM + "월"
+        os.makedirs(monthPath , exist_ok= True)
+
+        lastPath = monthPath + "/" + rgstDt
+        os.makedirs(lastPath , exist_ok= True)
+
+        mainTopic = accordian.find("a" , {"class": "accordion__pointer"} )["title"] # 공지사항 제목
+        fileDiv = accordian.find("div" , {"class": "accordion__contents"}) # 공지사항 내용
+        sheetPath.cell(row,2).value = str(mainTopic)    # 제목
+        sheetPath.cell(row,3).value = str(fileDiv)    # 내용  
+        sheetPath.cell(row,4).value = rgstDt    # 등록일자  
+
+        files = fileDiv.findAll("a")
+        imgs = fileDiv.findAll("img")
+
+        if len(files) > 0 or len(imgs) > 0:
+            col = 5
+            for file in files:
+                fileDownLoadUrl = file["href"].strip()        # 다운로드할 파일 url
+                if fileDownLoadUrl.find("getattachment") == -1: # 파일 아니면 넘어가 
+                    continue
+
+                docType = fileDownLoadUrl[fileDownLoadUrl.rfind("/"):]    # 문서형식 추출
+                fileName = docType[:docType.find(".")]
+                docType = docType[docType.find(".")+1:docType.rfind(".")]
+                
+                if fileDownLoadUrl.find(pruMainUrl2) == -1: # https://가 아닌 http:// 인것도 있어서 www부터 체크
+                    fileDownLoadUrl = pruMainUrl + fileDownLoadUrl
+                
+                saveName = fileName + "." + docType
+                downloadPath = lastPath + "/" + saveName      #저장 경로
+
+                try:
+                    download(fileDownLoadUrl , downloadPath)
+                    sheetPath.cell(row, col).value = downloadPath # 첨부파일경로
+                    col += 1
+                    print("success : " , downloadPath)
+                except urllib.error.HTTPError as e:
+                    print("failed:", e)
+
+            for file in imgs:
+                fileDownLoadUrl = file["src"].strip()        # 다운로드할 파일 url
+                docType = fileDownLoadUrl[fileDownLoadUrl.rfind("/"):]    # 문서형식 추출
+                fileName = docType[:docType.find(".")]
+                if fileDownLoadUrl.find("getattachment") != -1: # getattachment 형식이면
+                    docType = docType[docType.find(".")+1:docType.rfind(".")]
+                else:
+                    docType = docType[docType.find(".")+1:]
+
+                
+                if fileDownLoadUrl.find(pruMainUrl2) == -1: # https://가 아닌 http:// 인것도 있어서 www부터 체크
+                    fileDownLoadUrl = pruMainUrl + fileDownLoadUrl
+                
+                saveName = fileName + "." + docType
+                downloadPath = lastPath + "/" + saveName      #저장 경로
+
+                try:
+                    download(fileDownLoadUrl , downloadPath)
+                    sheetPath.cell(row, col).value = downloadPath # 첨부파일경로
+                    col += 1
+                    print("success : " , downloadPath)
+                except urllib.error.HTTPError as e:
+                    print("failed:", e)
+        row += 1
+
+    dataTempltExcel.save('output/notice.xlsx')  #엑셀 다른이름 저장 
+    return
+
+def cmpyInformationAccordian(tabInfo , tabPath) : #경영공시 아코디언 형식
     cmpyInformationAccordian = tabInfo.select('.panel__block')[0]
     accordianList = cmpyInformationAccordian.select('.accordion')
     
@@ -387,11 +558,11 @@ def clickDept2(url , filePath, sheetPath, row) :
                 
                 duration = dept2Strip.split()
                 if len(duration) < 3:
-                    startDate = duration[0]
+                    startDate = duration[0].replace("-","")
                     endDate = ""
                 else:
-                    startDate = duration[0]
-                    endDate = duration[2]
+                    startDate = duration[0].replace("-","")
+                    endDate = duration[2].replace("-","")
 
                 fileList = tables[i].findAll("td", {"class": "ta-c"})
 
@@ -445,7 +616,7 @@ def getPageSourceHtml(url) :  # 페이지 소스 html변환
     chromeDriver.get(path)
 
     html = chromeDriver.page_source # html을 문자열로 가져온다.
-    response = get(url)
+    # response = get(url)
     # html = response.text
     # beautifulsoup 사용하기
     soup = BeautifulSoup(html,'html.parser')
@@ -453,7 +624,9 @@ def getPageSourceHtml(url) :  # 페이지 소스 html변환
     return soup
 
 #주석 제외 후 실행
-# selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['operating-manual','trust-terms'])  #변액공시 (운용설명서 , 신탁약관)
+# selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['insurance-disclosure-at-any-time'])  #변액공시 (수시공시)
 # selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['regulations','disclosure'])  #사회공헌공시 (사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시)
 # selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['governance'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
-selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
+# selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
+# selectTab('13340','https://www.prudential.co.kr/support-center/notices.aspx',[''])   # 공지사항
+# selectTab('13341','https://www.prudential.co.kr/disclosure/retirement-disclosure.aspx',['asset-liabilities','asset-composition'])   # 퇴직연금(자산부채현황, 자산구성내역)
