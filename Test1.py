@@ -3,43 +3,26 @@ import os
 import urllib.request
 from requests import get
 from openpyxl import load_workbook
-from openpyxl.utils.cell import coordinate_from_string
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import math
 import time
 
-
-
 '''
-1. 공시실 최상위 메뉴 선택 (상품공시 , 경영공시 등등)
-2. 탭 선택 (다운로드 필요한 탭id 값 하드코딩)
-3. 검색창, 페이지 여부에 따라 생략될 수 있음
-  3-1. 상품공시실) 주계약 , 특약 선택 (url에 파람 보냄 ~~?ct=01&tab=tabId)
-  3-2. 경영공시실) 페이징 처리(페이지 번호 파람 보냄 ~~?page=10&tab=tabId)
-4. 해당 탭 영역의 table 확인
-5. 첨부파일 다운로드 
-  5-1. 상품공시실) 상품공시 > 해당 탭명 > 주계약/특약 > 보험 구분명 > 보험 상품명 > 상세상품명 > 판매기간 > 파일 (지정된 파일명으로 저장) 
-  5-2. 변액보험공시실) 변액보험공시 > 해당 탭명 > 상품명_판매기간 > 파일 (지정된 파일명으로 저장)
-  5-3. 사회공헌공시실) 사회공헌공시 > 해당 탭명 > 
-                         사회공헌관련 규정 ) 제목 > 파일 (제목으로 파일명 저장 확장자 : .docx)
-                         자산무상양도 공시일 ) 제목 > 파일 (공시일자를 파일명으로 저장)
-  5-4. 경영공시실) 경영공시 > 해당 탭명 > 
-                       정기/지배구조 ) 연도별 > 파일 (정기공시는 제목을 , 지배구조공시는 날짜_제목을 파일명으로 저장)
-                       수시경영공시  ) 연도별 > 월별 > 파일 (날짜_제목을 파일명으로 저장)
-commit test123 123
+(공지사항 , 퇴직연금공시 , 상품공시) 이외 메뉴 실행 
+하단 주석 제외 후 실행
 '''
 
 pruMainUrl = "https://www.prudential.co.kr"
 
 dataTempltExcel = load_workbook('dataTemplate.xlsx')#엑셀 템플릿
-dataTempltExcel0908 = load_workbook('DataTemplate_0908.xlsx')#엑셀 템플릿
-chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
-noMakeDirMenu = ['13339']
-noMakeDirTabId = ['donation' , 'social-service' ,'variable-insurance-product-disclosure']
+dataTempltExcel0908 = load_workbook('DataTemplate_0908.xlsx')#엑셀 템플릿_추가요구사항 0908 기준
+# chromeDriver = webdriver.Chrome(ChromeDriverManager().install())
+noMakeDirMenu = ['13339'] #폴더가 생성되지 않아도 되는 공시실 id
+noMakeDirTabId = ['donation' , 'social-service' ,'variable-insurance-product-disclosure'] #폴더가 생성되지 않아도 되는 탭 id
 
-def selectTab(menuId , mainUrl , tabIdList) :
+def selectTab(menuId , mainUrl , tabIdList) : 
 
     url = mainUrl
     html = getPageSourceHtml(mainUrl) # html을 문자열로 가져온다.
@@ -89,7 +72,7 @@ def selectTab(menuId , mainUrl , tabIdList) :
         elif menuId == "13343":  #변액공시
             if tabId == 'insurance-disclosure-at-any-time' :
                   #페이지로 구성되어 있음 
-                #페이지 1씩 더하다가 체크된 페이지랑 url에 입력된 페이지랑 맞지 않으면 스탑
+                  #페이지 1씩 더하다가 체크된 페이지랑 url에 입력된 페이지랑 맞지 않으면 스탑
                 insertPage = "1"
                 currentPage = tabInfo.find("strong" , {"class" : "SelectedPage"}).text
 
@@ -885,8 +868,42 @@ def getCellTitleIndex(sheetRow , titleNm):
     return index + 1
 
 
+
+#손상된 파일 확인한 것
+def checkFileYN() :
+    excel = load_workbook('New Document 2022-09-14 144146.xlsx')#엑셀 템플릿
+    sheetPath = excel.get_sheet_by_name("Sheet1")   #엑셀 시트명
+
+    row = '1'
+    while 100 != int(row) :
+        cellNum = "A" + row
+
+        try:
+            if sheetPath[cellNum].value.strip() == "" :
+                continue
+        
+            checkExistFile(sheetPath[cellNum].value.strip().replace("\\" , "/"))
+            
+        except AttributeError :
+            print("except : " , row , " : " , sheetPath[cellNum].value)
+        
+        row = str(int(row) + 1)
+
+    return
+
+def checkExistFile(pathOrFile) :  
+
+    if os.path.exists(pathOrFile) :  
+        print(open(pathOrFile))
+    else :
+        print("fail : " , pathOrFile)
+    
+
+    return 
+
+
 #주석 제외 후 실행
-selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['risk-indicator'])  #변액공시 (상품공시, 수시공시)['variable-insurance-product-disclosure', 'insurance-disclosure-at-any-time','risk-indicator']
+# selectTab('13343','https://www.prudential.co.kr/disclosure/variable-insurance-disclosure.aspx',['risk-indicator'])  #변액공시 (상품공시, 수시공시)['variable-insurance-product-disclosure', 'insurance-disclosure-at-any-time','risk-indicator']
 # selectTab('13348','https://www.prudential.co.kr/disclosure/social-contribution-disclosure.aspx',['donation','social-service'])  #사회공헌공시 (기부 및 집행 세부내역 , 사회공헌 관련규정 , 공익법인 등 자산의 무상양도 공시) ['donation','social-service','regulations','disclosure']
 # selectTab('13347','https://www.prudential.co.kr/disclosure/company-management-information.aspx',['regular' ,'governance', 'occasional'])   #경영공시 (정기/수시 경영공지 , 지배구조 공지) ['regular' ,'governance', 'occasional']
 # selectTab('13342','https://www.prudential.co.kr/disclosure/product-disclosure.aspx',['currently-selling','discontinued'])   #상품공시 (판매상품 , 판매중지상품)
